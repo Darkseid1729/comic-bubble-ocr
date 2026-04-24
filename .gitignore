@@ -1,0 +1,81 @@
+# ──────────────────────────────────────
+# Python
+# ──────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+
+# ──────────────────────────────────────
+# Virtual Environment
+# ──────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ──────────────────────────────────────
+# IDE / Editor
+# ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ──────────────────────────────────────
+# OS Files
+# ──────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ──────────────────────────────────────
+# Project Outputs (regeneratable)
+# ──────────────────────────────────────
+outputs/
+*.log
+*.log.*
+
+# ──────────────────────────────────────
+# Frontend
+# ──────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/.vite/
+frontend/.eslintcache
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+node_modules/
+plan.txt
+
+# ──────────────────────────────────────
+# Prompts / assignment notes
+# ──────────────────────────────────────
+prompt.txt
+DIP_prompt.txt
+problem_statement.txt
+# ──────────────────────────────────────
+# Jupyter Notebooks
+# ──────────────────────────────────────
+.ipynb_checkpoints/
+
+# ──────────────────────────────────────
+# Keep sample images tracked
+# ──────────────────────────────────────
+!samples/

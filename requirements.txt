@@ -1,0 +1,11 @@
+# Speech Bubble-Aware OCR System - Dependencies
+# Install with: pip install -r requirements.txt
+
+opencv-python>=4.8.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
