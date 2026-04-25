@@ -26,7 +26,15 @@ const buildUrl = (path) => {
   return `${API_BASE}${path}`;
 };
 
-function OverlayImage({ src, alt, bubbles, selectedId, showOverlay = true, size = "large" }) {
+function OverlayImage({
+  src,
+  alt,
+  bubbles,
+  selectedId,
+  showOverlay = true,
+  size = "large",
+  onOpenViewer
+}) {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
 
   const handleLoad = (event) => {
@@ -39,6 +47,13 @@ function OverlayImage({ src, alt, bubbles, selectedId, showOverlay = true, size 
   return (
     <div className={`overlay-wrap ${size}`}>
       <img className="preview-image" src={src} alt={alt} onLoad={handleLoad} />
+      <button
+        className="image-open"
+        type="button"
+        onClick={() => onOpenViewer?.(src, alt)}
+      >
+        Open
+      </button>
       {showOverlay && imageSize.width ? (
         <svg
           className="overlay"
@@ -94,8 +109,21 @@ export default function App() {
   const [minArea, setMinArea] = useState(500);
   const [useWatershed, setUseWatershed] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [translateEnabled, setTranslateEnabled] = useState(false);
   const [viewMode, setViewMode] = useState("annotated");
   const [activeTab, setActiveTab] = useState("workspace");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState("");
+  const [viewerAlt, setViewerAlt] = useState("Image");
+  const [viewerImageSize, setViewerImageSize] = useState({ width: 0, height: 0 });
+  const [viewerCanvasSize, setViewerCanvasSize] = useState({ width: 0, height: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [fitMode, setFitMode] = useState("fit");
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+  const viewerCanvasRef = useRef(null);
 
   const fileInputRef = useRef(null);
 
@@ -135,13 +163,19 @@ export default function App() {
 
   const jsonPreview = useMemo(() => {
     return JSON.stringify(
-      bubbles.map(({ id, type, text, bbox, confidence }) => ({
-        bubble_id: id,
-        bubble_type: type,
-        text,
-        bbox,
-        confidence
-      })),
+      bubbles.map((bubble) => {
+        const payload = {
+          bubble_id: bubble.id,
+          bubble_type: bubble.type,
+          text: bubble.text,
+          bbox: bubble.bbox,
+          confidence: bubble.confidence
+        };
+        if (bubble.translated_text) {
+          payload.translated_text = bubble.translated_text;
+        }
+        return payload;
+      }),
       null,
       2
     );
@@ -172,6 +206,8 @@ export default function App() {
     formData.append("min_area", String(minArea));
     formData.append("watershed", String(useWatershed));
     formData.append("debug", String(debugMode));
+    formData.append("translate", String(translateEnabled));
+    formData.append("target_lang", "EN");
 
     try {
       const endpoint = API_BASE ? `${API_BASE}/api/ocr` : "/api/ocr";
@@ -214,6 +250,25 @@ export default function App() {
     }
   };
 
+  const handleShutdown = async () => {
+    if (!window.confirm("Are you sure you want to close the application?")) return;
+    
+    try {
+      const endpoint = API_BASE ? `${API_BASE}/api/shutdown` : "/api/shutdown";
+      await fetch(endpoint, { method: "POST" });
+      // The server will die, so we can just show a message or close the tab
+      setStatus("Application closed.");
+      setTimeout(() => {
+        window.close();
+        document.body.innerHTML = '<div style="background:#1a1a1a;color:#fff;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;"><h1>Application has been closed. You can now close this tab.</h1></div>';
+      }, 500);
+    } catch (err) {
+      // Server might die before responding, which is fine
+      window.close();
+      document.body.innerHTML = '<div style="background:#1a1a1a;color:#fff;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;"><h1>Application has been closed. You can now close this tab.</h1></div>';
+    }
+  };
+
   const handleCopyJson = async () => {
     try {
       await navigator.clipboard.writeText(jsonPreview);
@@ -245,9 +300,125 @@ export default function App() {
     }
   };
 
+  const openViewer = (src, alt) => {
+    if (!src) return;
+    setViewerSrc(src);
+    setViewerAlt(alt || "Image");
+    setZoom(1);
+    setFitMode("fit");
+    setOffset({ x: 0, y: 0 });
+    setViewerOpen(true);
+  };
+
+  const closeViewer = () => {
+    setViewerOpen(false);
+  };
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+  const zoomIn = () => {
+    setZoom((prev) => clamp(Number((prev + 0.2).toFixed(2)), 0.5, 5));
+  };
+
+  const zoomOut = () => {
+    setZoom((prev) => clamp(Number((prev - 0.2).toFixed(2)), 0.5, 5));
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+    setFitMode("fit");
+  };
+
+  const setFit = (mode) => {
+    setFitMode(mode);
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (event) => {
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.12 : -0.12;
+    setZoom((prev) => clamp(Number((prev + delta).toFixed(2)), 0.5, 5));
+  };
+
+  const handleViewerImageLoad = (event) => {
+    setViewerImageSize({
+      width: event.target.naturalWidth,
+      height: event.target.naturalHeight
+    });
+  };
+
+  const handlePointerDown = (event) => {
+    if (!viewerOpen) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y
+    };
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!dragRef.current.active) return;
+    const deltaX = event.clientX - dragRef.current.startX;
+    const deltaY = event.clientY - dragRef.current.startY;
+    setOffset({
+      x: dragRef.current.originX + deltaX,
+      y: dragRef.current.originY + deltaY
+    });
+  };
+
+  const handlePointerUp = () => {
+    dragRef.current.active = false;
+    setIsDragging(false);
+  };
+
   const avgConfidence = Math.round((metrics.avgConfidence ?? 0) * 100);
   const compareInput = inputImageUrl || localPreview;
   const compareAnnotated = annotatedUrl;
+
+  useEffect(() => {
+    if (!viewerOpen) return;
+    const node = viewerCanvasRef.current;
+    if (!node) return;
+
+    const updateSize = () => {
+      setViewerCanvasSize({
+        width: node.clientWidth,
+        height: node.clientHeight
+      });
+    };
+
+    updateSize();
+
+    let observer;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateSize);
+      observer.observe(node);
+    }
+
+    window.addEventListener("resize", updateSize);
+    return () => {
+      window.removeEventListener("resize", updateSize);
+      if (observer) observer.disconnect();
+    };
+  }, [viewerOpen]);
+
+  const baseScale = useMemo(() => {
+    if (!viewerCanvasSize.width || !viewerCanvasSize.height) {
+      return 1;
+    }
+    if (!viewerImageSize.width || !viewerImageSize.height) {
+      return 1;
+    }
+    const scaleX = viewerCanvasSize.width / viewerImageSize.width;
+    const scaleY = viewerCanvasSize.height / viewerImageSize.height;
+    return fitMode === "fill" ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+  }, [fitMode, viewerCanvasSize, viewerImageSize]);
 
   return (
     <div className="app">
@@ -270,6 +441,9 @@ export default function App() {
           </div>
           <button className="btn primary" onClick={handleRunOCR} disabled={isRunning}>
             {isRunning ? "Running..." : "Run OCR"}
+          </button>
+          <button className="btn danger" onClick={handleShutdown} title="Exit Application">
+            Close App
           </button>
         </div>
       </header>
@@ -354,6 +528,14 @@ export default function App() {
                 <label className="toggle">
                   <input
                     type="checkbox"
+                    checked={translateEnabled}
+                    onChange={(e) => setTranslateEnabled(e.target.checked)}
+                  />
+                  <span>Translate to English</span>
+                </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
                     checked={debugMode}
                     onChange={(e) => setDebugMode(e.target.checked)}
                   />
@@ -401,6 +583,7 @@ export default function App() {
                       selectedId={selectedId}
                       showOverlay
                       size="large"
+                      onOpenViewer={openViewer}
                     />
                   ) : (
                     <div className="stage-empty">Run OCR to see the raw image.</div>
@@ -415,6 +598,7 @@ export default function App() {
                       selectedId={selectedId}
                       showOverlay
                       size="large"
+                      onOpenViewer={openViewer}
                     />
                   ) : (
                     <div className="stage-empty">Run OCR to see annotated output.</div>
@@ -432,6 +616,7 @@ export default function App() {
                           selectedId={selectedId}
                           showOverlay={false}
                           size="small"
+                          onOpenViewer={openViewer}
                         />
                       </div>
                       <div>
@@ -443,6 +628,7 @@ export default function App() {
                           selectedId={selectedId}
                           showOverlay
                           size="small"
+                          onOpenViewer={openViewer}
                         />
                       </div>
                     </div>
@@ -544,7 +730,16 @@ export default function App() {
                   pipelineImages.map((stage) => (
                     <div key={stage.title} className="stage-card">
                       <div className="stage-title">{stage.title}</div>
-                      <img className="stage-image" src={buildUrl(stage.image)} alt={stage.title} />
+                      <div className="stage-media">
+                        <img className="stage-image" src={buildUrl(stage.image)} alt={stage.title} />
+                        <button
+                          className="image-open"
+                          type="button"
+                          onClick={() => openViewer(buildUrl(stage.image), stage.title)}
+                        >
+                          Open
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -559,77 +754,142 @@ export default function App() {
 
         {activeTab === "results" ? (
           <section className="results">
-            <div className="panel stats">
-              <div className="panel-header">
-                <p>Run Summary</p>
-                <span className="chip">{runData?.imageName || "No run"}</span>
-              </div>
-              <div className="metric-grid">
-                <div>
-                  <p className="muted">Bubbles</p>
-                  <h3>{metrics.bubbles ?? 0}</h3>
-                </div>
-                <div>
-                  <p className="muted">Characters</p>
-                  <h3>{metrics.chars ?? 0}</h3>
-                </div>
-                <div>
-                  <p className="muted">Avg confidence</p>
-                  <h3>{avgConfidence}%</h3>
-                </div>
-                <div>
-                  <p className="muted">Latency</p>
-                  <h3>{runData?.processing_time == null ? "--" : `${runData.processing_time.toFixed(2)}s`}</h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <p>Reading Order</p>
-                <span className="chip">Dialogue</span>
-              </div>
-              <div className="dialogue-list">
-                {orderedBubbles.length ? (
-                  orderedBubbles.map((bubble) => (
-                    <div key={bubble.id} className="dialogue-item">
-                      <div className="dialogue-index">#{bubble.id}</div>
-                      <div>
-                        <div className={`badge ${bubble.type}`}>{bubble.type}</div>
-                        <p className="dialogue-text">{bubble.text}</p>
-                      </div>
+            <div className="results-grid">
+              <div className="results-col">
+                <div className="panel stats">
+                  <div className="panel-header">
+                    <p>Run Summary</p>
+                    <span className="chip">{runData?.imageName || "No run"}</span>
+                  </div>
+                  <div className="metric-grid">
+                    <div>
+                      <p className="muted">Bubbles</p>
+                      <h3>{metrics.bubbles ?? 0}</h3>
                     </div>
-                  ))
-                ) : (
-                  <div className="stage-empty">Run OCR to build the dialogue timeline.</div>
-                )}
-              </div>
-            </div>
+                    <div>
+                      <p className="muted">Characters</p>
+                      <h3>{metrics.chars ?? 0}</h3>
+                    </div>
+                    <div>
+                      <p className="muted">Avg confidence</p>
+                      <h3>{avgConfidence}%</h3>
+                    </div>
+                    <div>
+                      <p className="muted">Latency</p>
+                      <h3>{runData?.processing_time == null ? "--" : `${runData.processing_time.toFixed(2)}s`}</h3>
+                    </div>
+                  </div>
+                </div>
 
-            <div className="panel json">
-              <div className="panel-header">
-                <p>JSON Preview</p>
-                <button className="btn ghost" onClick={handleCopyJson}>
-                  Copy JSON
-                </button>
+                <div className="panel">
+                  <div className="panel-header">
+                    <p>Reading Order</p>
+                    <span className="chip">Dialogue</span>
+                  </div>
+                  <div className="dialogue-list compact">
+                    {orderedBubbles.length ? (
+                      orderedBubbles.map((bubble) => (
+                        <div key={bubble.id} className="dialogue-item">
+                          <div className="dialogue-index">#{bubble.id}</div>
+                          <div>
+                            <div className={`badge ${bubble.type}`}>{bubble.type}</div>
+                            <p className="dialogue-text">{bubble.text}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="stage-empty">Run OCR to build the dialogue timeline.</div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <pre>{jsonPreview}</pre>
-            </div>
 
-            <div className="export-bar">
-              <button className="btn ghost" onClick={handleOpenAnnotated}>
-                Open Annotated Image
-              </button>
-              <button className="btn ghost" onClick={handleOpenResults}>
-                Open JSON
-              </button>
-              <button className="btn primary" onClick={handleOpenText}>
-                Open Extracted Text
-              </button>
+              <div className="results-col">
+                <div className="panel json">
+                  <div className="panel-header">
+                    <p>JSON Preview</p>
+                    <button className="btn ghost" onClick={handleCopyJson}>
+                      Copy JSON
+                    </button>
+                  </div>
+                  <pre>{jsonPreview}</pre>
+                </div>
+
+                <div className="export-bar">
+                  <button className="btn ghost" onClick={handleOpenAnnotated}>
+                    Open Annotated Image
+                  </button>
+                  <button className="btn ghost" onClick={handleOpenResults}>
+                    Open JSON
+                  </button>
+                  <button className="btn primary" onClick={handleOpenText}>
+                    Open Extracted Text
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         ) : null}
       </main>
+
+      {viewerOpen ? (
+        <div className="viewer-backdrop" onClick={closeViewer}>
+          <div className="viewer" onClick={(event) => event.stopPropagation()}>
+            <div className="viewer-toolbar">
+              <p className="viewer-title">{viewerAlt}</p>
+              <div className="viewer-actions">
+                <button
+                  className={fitMode === "fit" ? "viewer-btn active" : "viewer-btn"}
+                  type="button"
+                  onClick={() => setFit("fit")}
+                >
+                  Fit
+                </button>
+                <button
+                  className={fitMode === "fill" ? "viewer-btn active" : "viewer-btn"}
+                  type="button"
+                  onClick={() => setFit("fill")}
+                >
+                  Fill
+                </button>
+                <button className="viewer-btn" type="button" onClick={zoomOut}>
+                  -
+                </button>
+                <button className="viewer-btn" type="button" onClick={zoomIn}>
+                  +
+                </button>
+                <button className="viewer-btn" type="button" onClick={resetView}>
+                  Reset
+                </button>
+                <button className="viewer-btn" type="button" onClick={closeViewer}>
+                  Close
+                </button>
+              </div>
+            </div>
+            <div
+              className={`viewer-canvas ${isDragging ? "dragging" : ""}`}
+              ref={viewerCanvasRef}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+              onWheel={handleWheel}
+              onDoubleClick={resetView}
+            >
+              <img
+                className="viewer-image"
+                src={viewerSrc}
+                alt={viewerAlt}
+                style={{
+                  transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${zoom * baseScale})`
+                }}
+                draggable={false}
+                onLoad={handleViewerImageLoad}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

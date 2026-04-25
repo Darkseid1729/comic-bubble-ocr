@@ -171,6 +171,35 @@ python main.py --input page.png --min_area 1000
 python main.py --input page.png --watershed
 ```
 
+### 4. Running the Standalone Executable
+If you have built the application into a standalone `.exe` using PyInstaller:
+
+1. Navigate to the `dist/` directory.
+2. Double-click `app_launcher.exe`.
+3. The backend will start silently, and your default web browser will open the UI.
+4. **Closing the App:** Use the red **Close App** button in the UI header to safely terminate both the frontend and the background server process.
+
+---
+
+## 🛠️ How to Build (from source)
+
+To create your own standalone executable:
+
+### 1. Build the Frontend
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+### 2. Build the Python Bundle
+Ensure your virtual environment is active, then run:
+```bash
+.\.venv\Scripts\pyinstaller --clean app_launcher.spec
+```
+The finished executable will be in the `dist/` folder.
+
 ---
 
 ## 🧩 Full Stack Setup (API + React UI)
@@ -291,6 +320,16 @@ Metrics available:
 - **Accessibility**: Screen readers for visually impaired users
 - **Digital Archiving**: Index and search comic collections
 - **Content Analysis**: Study dialogue patterns, word frequency
+
+### 🌟 Personal Future Vision: AI Manhwa Explainer Automation
+
+The ultimate goal of this project is to integrate this OCR pipeline with a Large Language Model (LLM) agent (like Chatterbox) to fully automate the creation of "Manhwa Explanation" YouTube videos. 
+
+**The Automated Workflow:**
+1. **Upload:** User uploads a chapter of a manhwa.
+2. **Extraction (This Project):** Extract dialogue, narration, and panel sequence.
+3. **Analysis:** The LLM comprehends the plot, character interactions, and narrative tone.
+4. **Video Generation:** The LLM generates a recap script, passes it to a Text-to-Speech (TTS) engine, and syncs the audio with panel highlights to automatically produce an engaging YouTube video.
 
 ---
 

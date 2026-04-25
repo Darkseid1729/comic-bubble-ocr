@@ -26,7 +26,7 @@ from utils import logger, BUBBLE_COLORS, BUBBLE_TYPE_LABELS
 # ═══════════════════════════════════════════════════════════════
 # A. SHAPE FEATURE EXTRACTION
 # ═══════════════════════════════════════════════════════════════
-def compute_shape_features(contour: np.ndarray) -> dict:
+def compute_shape_features(contour: np.ndarray, gray_image: np.ndarray = None) -> dict:
     """
     Compute geometric features for a single contour.
 
@@ -138,10 +138,21 @@ def compute_shape_features(contour: np.ndarray) -> dict:
         features["min_rect"] = None
         features["rectangularity"] = 0.0
 
+    # ── Mean Intensity ──
+    # Speech bubbles are typically white inside with black text.
+    # Therefore, the mean intensity should be very high (> 210).
+    if gray_image is not None:
+        mask = np.zeros(gray_image.shape, dtype=np.uint8)
+        cv2.drawContours(mask, [contour], -1, 255, -1)
+        mean_val = cv2.mean(gray_image, mask=mask)[0]
+        features["mean_intensity"] = mean_val
+    else:
+        features["mean_intensity"] = 255.0
+
     return features
 
 
-def compute_all_features(contours: list) -> list:
+def compute_all_features(contours: list, gray_image: np.ndarray = None) -> list:
     """
     Compute shape features for all contours.
 
@@ -157,7 +168,7 @@ def compute_all_features(contours: list) -> list:
     """
     all_features = []
     for i, cnt in enumerate(contours):
-        feat = compute_shape_features(cnt)
+        feat = compute_shape_features(cnt, gray_image)
         feat["contour_index"] = i
         feat["contour"] = cnt
         all_features.append(feat)
@@ -228,7 +239,7 @@ def classify_bubble_type(features: dict) -> str:
         return "thought"
 
     # ── Fallback: still likely a bubble if basic shape criteria met ──
-    if solidity > 0.5 and circ > 0.15 and 0.2 < aspect < 5.0:
+    if solidity > 0.65 and circ > 0.25 and 0.2 < aspect < 5.0:
         return "speech"  # Default to speech for reasonable shapes
 
     return "unknown"
@@ -245,6 +256,8 @@ def filter_bubble_candidates(features_list: list,
                              min_solidity: float = 0.3,
                              min_aspect: float = 0.15,
                              max_aspect: float = 6.0,
+                             max_width_ratio: float = 0.6,
+                             max_height_ratio: float = 0.85,
                              image_shape: tuple = None) -> list:
     """
     Apply multi-criteria filtering to identify speech bubble candidates.
@@ -279,21 +292,28 @@ def filter_bubble_candidates(features_list: list,
         Filtered features list with added 'bubble_type' key.
     """
     if max_area is None and image_shape is not None:
-        max_area = image_shape[0] * image_shape[1] * 0.4
+        max_area = image_shape[0] * image_shape[1] * 0.20 # 20% of image max
     elif max_area is None:
         max_area = float("inf")
 
     candidates = []
     rejected_reasons = {"area": 0, "circularity": 0, "solidity": 0,
-                        "aspect_ratio": 0}
+                        "aspect_ratio": 0, "dimensions": 0}
 
     for feat in features_list:
         area = feat["area"]
         circ = feat["circularity"]
         sol = feat["solidity"]
         aspect = feat["aspect_ratio"]
+        x, y, w, h = feat["bbox"]
 
         # ── Filter checks ──
+        if image_shape is not None:
+            max_w = image_shape[1] * max_width_ratio
+            max_h = image_shape[0] * max_height_ratio
+            if w > max_w or h > max_h:
+                rejected_reasons["dimensions"] += 1
+                continue
         if not (min_area <= area <= max_area):
             rejected_reasons["area"] += 1
             continue
@@ -310,8 +330,19 @@ def filter_bubble_candidates(features_list: list,
             rejected_reasons["aspect_ratio"] += 1
             continue
 
+        # Speech bubbles should be primarily uniform background (white or black).
+        # Heavy text can drop a white bubble's mean intensity to ~140.
+        mean_int = feat.get("mean_intensity", 255)
+        if 50 < mean_int < 130:
+            rejected_reasons["mean_intensity"] = rejected_reasons.get("mean_intensity", 0) + 1
+            continue
+
         # ── Classify bubble type ──
         btype = classify_bubble_type(feat)
+        if btype == "unknown":
+            rejected_reasons["unknown_type"] = rejected_reasons.get("unknown_type", 0) + 1
+            continue
+            
         feat["bubble_type"] = btype
         candidates.append(feat)
 
@@ -320,6 +351,9 @@ def filter_bubble_candidates(features_list: list,
     logger.info(f"  Rejected by circularity: {rejected_reasons['circularity']}")
     logger.info(f"  Rejected by solidity: {rejected_reasons['solidity']}")
     logger.info(f"  Rejected by aspect ratio: {rejected_reasons['aspect_ratio']}")
+    logger.info(f"  Rejected by dimensions: {rejected_reasons.get('dimensions', 0)}")
+    logger.info(f"  Rejected by intensity: {rejected_reasons.get('mean_intensity', 0)}")
+    logger.info(f"  Rejected by type unknown: {rejected_reasons.get('unknown_type', 0)}")
 
     return candidates
 
@@ -695,7 +729,8 @@ def detection_pipeline(original: np.ndarray,
     results = {}
 
     # Step 1: Compute shape features
-    features = compute_all_features(contours)
+    gray_image = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY) if len(original.shape) == 3 else original
+    features = compute_all_features(contours, gray_image)
     results["features"] = features
 
     # Step 2 & 3: Filter and classify

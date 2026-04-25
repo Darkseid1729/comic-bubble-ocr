@@ -1,0 +1,25 @@
+Build steps for a single EXE
+
+1) Build React UI
+   cd frontend
+   npm install
+   npm run build
+
+2) Install Python dependencies (same env as PyInstaller)
+   pip install -r requirements.txt
+
+3) Install PyInstaller
+   pip install pyinstaller
+
+4) Build EXE (one-file)
+   pyinstaller --onefile --noconsole \
+     --add-data "frontend/dist;frontend/dist" \
+     --add-data "outputs;outputs" \
+     app_launcher.py
+
+Notes:
+- The UI is served by FastAPI from frontend/dist.
+- The EXE opens http://127.0.0.1:8000 automatically.
+- If you prefer a windowed console for logs, remove --noconsole.
+- If you see ModuleNotFoundError for requests, make sure it is installed in the
+   build environment or add: --hidden-import requests

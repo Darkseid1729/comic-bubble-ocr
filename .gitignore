@@ -48,6 +48,9 @@ desktop.ini
 outputs/
 *.log
 *.log.*
+api_error.log
+crash_debug.txt
+launcher.log
 
 # ──────────────────────────────────────
 # Frontend
@@ -70,6 +73,7 @@ plan.txt
 prompt.txt
 DIP_prompt.txt
 problem_statement.txt
+before_converting_into_exe.txt
 # ──────────────────────────────────────
 # Jupyter Notebooks
 # ──────────────────────────────────────
@@ -79,3 +83,19 @@ problem_statement.txt
 # Keep sample images tracked
 # ──────────────────────────────────────
 !samples/
+
+# ──────────────────────────────────────
+# Standalone Exe & Build Artifacts
+# ──────────────────────────────────────
+test_run.py
+capture.py
+capture.txt
+
+# ──────────────────────────────────────
+# LaTeX Report Build Files
+# ──────────────────────────────────────
+*.aux
+*.log
+*.out
+*.toc
+*.pdf

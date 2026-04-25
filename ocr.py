@@ -279,7 +279,7 @@ def ocr_with_fallback(image: np.ndarray, lang: str = "eng") -> str:
         Best OCR result.
     """
     results = {}
-    for psm in [6, 7, 11]:
+    for psm in [6, 5, 7, 11]:
         text = run_tesseract(image, psm=psm, lang=lang)
         clean = text.strip()
         results[psm] = clean
@@ -597,6 +597,21 @@ def ocr_pipeline(candidates: list, original: np.ndarray,
 
         # Estimate OCR confidence (0.0 - 1.0)
         confidence = estimate_confidence(prepared, lang=lang)
+
+        # Skip bubbles with no meaningful text
+        clean_merged = merged.strip()
+        if len(clean_merged) < 2 and clean_merged not in ["I", "a", "O", "?", "!"]:
+            logger.info(f"Bubble #{bid} ({btype}) rejected due to empty/garbage text.")
+            continue
+
+        # Reject long gibberish (e.g. Tesseract reading line art)
+        # Check if at least 50% of the characters (excluding spaces) are alphanumeric
+        no_spaces = clean_merged.replace(" ", "").replace("\n", "")
+        if len(no_spaces) > 0:
+            alnum_count = sum(1 for c in no_spaces if c.isalnum())
+            if alnum_count / len(no_spaces) < 0.5:
+                logger.info(f"Bubble #{bid} ({btype}) rejected due to low alphanumeric ratio (gibberish).")
+                continue
 
         result = {
             "bubble_id": bid,
