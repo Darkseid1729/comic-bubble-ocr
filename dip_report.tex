@@ -16,12 +16,33 @@
 \tikzstyle{arrow} = [thick,->,>=stealth]
 
 \title{\textbf{Detailed Project Report: Speech Bubble-Aware OCR System using Digital Image Processing}}
-\author{Digital Image Processing Assignment}
+\author{
+    \textbf{Aditya Gautam} (Roll No: cs23b2037) \\
+    \textbf{Vansh Singh} (Roll No: cs23i1028) \\
+    \textbf{Riyansh Singh bhadouriya} (Roll No: cs23b2038) \\
+    \vspace{0.5cm} \\
+    Digital Image Processing Project
+}
 \date{\today}
 
 \begin{document}
 
 \maketitle
+
+\section{Team Contributions}
+The following table outlines the specific roles and technical contributions of each team member towards the development of the Bubble OCR system.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}llp{8cm}@{}}
+    \toprule
+    \textbf{Team Member} & \textbf{Role} & \textbf{Key Contributions} \\ \midrule
+    Aditya Gautam & DIP Lead & Developed the core preprocessing pipeline, including Bilateral filtering, CLAHE implementation, and Canny edge detection. Optimized Tesseract fallback modes for vertical text. \\
+    Vansh Singh & CV Specialist & Implemented the bubble segmentation logic using Watershed algorithms and contour analysis. Designed the geometric filters (Solidity, Circularity) for bubble classification. \\
+    Riyansh Singh bhadouriya & Full-Stack Lead & Designed and developed the React-based Studio UI. Built the FastAPI backend integration and managed the deployment process for the standalone executable. \\ \bottomrule
+    \end{tabular}
+    \caption{Project Contribution Matrix}
+\end{table}
 
 \section{Introduction}
 Optical Character Recognition (OCR) systems like Tesseract are optimized for clean, linear, high-contrast documents. Applying OCR directly to raw comic books, manga, or manhwa images yields extremely poor results. This failure is primarily due to complex, non-linear layouts, heavily stylized fonts, background noise (halftones), and speech bubbles that overlap or bleed into character art. To solve this, this project introduces a robust Digital Image Processing (DIP) pipeline that isolates and extracts text from individual speech bubbles prior to OCR application.
@@ -164,6 +185,14 @@ A major challenge in comic OCR is "hallucinated" text. When OCR engines look at 
     \item \textbf{Dimension Ratio}: We reject anything spanning $>60\%$ of the page width.
     \item \textbf{Alphanumeric Sanity Check}: We discard any OCR result where symbols outweigh letters.
 \end{enumerate}
+
+\section{Deployment and Implementation}
+The project is fully open-source and hosted on GitHub. The repository contains the full source code for both the Python-based DIP pipeline and the React-based frontend Studio.
+
+\begin{itemize}
+    \item \textbf{Source Code:} \href{https://github.com/Darkseid1729/comic-bubble-ocr.git}{github.com/Darkseid1729/comic-bubble-ocr}
+    \item \textbf{Standalone Application:} To ensure ease of use for non-technical users, we have packaged the entire system (Backend server + Frontend UI) into a single, standalone **Windows Executable (.exe)** using PyInstaller. This executable bundles all dependencies (OpenCV, Tesseract, and FastAPI) into a portable format that can be run on any Windows system with a single click.
+\end{itemize}
 
 \section{Experimental Comparison}
 The following table highlights the performance difference between standard OCR and our Bubble-Aware pipeline on a complex manga sample (e.g., \textit{download (5).jpg}).
