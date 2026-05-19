@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  ocr-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: comic-bubble-ocr:latest
+    container_name: comic_bubble_ocr_studio
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - DEEPL_API_KEY=${DEEPL_API_KEY:-}  # Optional translation API integration
+    volumes:
+      - ocr_outputs:/app/outputs
+    restart: unless-stopped
+
+volumes:
+  ocr_outputs:
+    driver: local
