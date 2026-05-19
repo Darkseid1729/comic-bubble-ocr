@@ -215,6 +215,9 @@ async def run_ocr(
         avg_conf = sum(confidences) / len(confidences) if confidences else 0.0
         char_count = sum(len(b["text"]) for b in bubbles)
 
+        if translate and not os.environ.get("DEEPL_API_KEY"):
+            translate = False
+
         if translate:
             source_lang = "JA" if lang.lower().startswith("jp") or lang.lower().startswith("ja") else None
             for bubble in bubbles:

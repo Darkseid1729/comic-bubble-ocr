@@ -99,3 +99,16 @@ capture.txt
 *.out
 *.toc
 *.pdf
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.blg
+*.bbl
+*.lof
+*.lot
+*.bcf
+*.run.xml
+*.idx
+*.ilg
+*.ind
+

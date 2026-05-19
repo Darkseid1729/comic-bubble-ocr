@@ -1,0 +1,18 @@
+This project is an OCR (Optical Character Recognition) application that extracts text from images using Tesseract. It preprocesses images, detects regions of interest (ROIs), and performs text extraction to improve accuracy. The application solves the problem of manual data entry by automating text extraction from scanned documents, images, and other visual data sources.
+
+Problem Statement
+The task was to build an OCR-focused digital image processing workflow that can take diverse document and image inputs, locate text regions, and produce readable extracted text in a usable format. The solution needed to handle real-world variations such as uneven lighting, noise, skew, mixed fonts, and multi-region layouts, while also producing outputs that are organized and easy to review.
+
+What We Achieved
+1) End-to-end OCR workflow: A complete pipeline that accepts input images, isolates text regions, and produces extracted text as final output.
+2) Robust preprocessing: Input images are enhanced for clarity so text becomes more legible, improving downstream extraction quality on challenging images.
+3) Text region handling: The process supports multiple regions within an image, enabling extraction from complex layouts rather than only single-block text.
+4) Organized outputs: Results are saved in structured folders with extracted text and supporting artifacts, making it straightforward to review and compare runs.
+5) Usability for evaluation: The workflow is set up so that results can be reviewed, compared, and reported consistently for the project deliverables.
+
+Scope and Limitations
+- Performance depends on image quality and document complexity; highly distorted or low-contrast inputs may still reduce accuracy.
+- The workflow is designed for academic project objectives rather than full production deployment.
+
+Conclusion
+The project successfully meets the goal of extracting text from varied images through a structured OCR pipeline, delivering organized results suitable for evaluation and reporting.

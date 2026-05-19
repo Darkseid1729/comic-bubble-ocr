@@ -6,6 +6,7 @@ Use this script as the PyInstaller entry point.
 
 import logging
 import os
+import socket
 import sys
 import threading
 import time
@@ -36,6 +37,30 @@ def _get_log_path() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).with_name("launcher.log")
     return Path(__file__).with_name("launcher.log")
+
+
+def _port_available(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, port))
+            return True
+    except OSError:
+        return False
+
+
+def _choose_port(host: str, preferred_port: int, max_tries: int = 25) -> int:
+    if _port_available(host, preferred_port):
+        return preferred_port
+
+    for offset in range(1, max_tries + 1):
+        candidate = preferred_port + offset
+        if _port_available(host, candidate):
+            return candidate
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return sock.getsockname()[1]
 
 
 def run_server(host: str, port: int, error_state: dict) -> None:
@@ -97,7 +122,7 @@ def _notify_startup_timeout(
 
 def main() -> None:
     host = os.environ.get("APP_HOST", "127.0.0.1")
-    port = int(os.environ.get("APP_PORT", "8000"))
+    preferred_port = int(os.environ.get("APP_PORT", "8000"))
 
     log_path = _get_log_path()
     logging.basicConfig(
@@ -108,6 +133,10 @@ def main() -> None:
     )
 
     error_state = {}
+    port = _choose_port(host, preferred_port)
+    if port != preferred_port:
+        logging.warning("Port %s is busy. Using %s.", preferred_port, port)
+
     thread = threading.Thread(target=run_server, args=(host, port, error_state), daemon=True)
     thread.start()
 
